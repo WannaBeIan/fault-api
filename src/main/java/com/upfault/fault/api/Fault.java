@@ -234,7 +234,17 @@ public final class Fault {
             ItemFacade.class,
             GuiModel.class,
             RegionModel.class,
-            AuditFacade.class
+            AuditFacade.class,
+            CapabilityService.class,
+            ResourcePackService.class,
+            RngService.class,
+            HealthCheckService.class,
+            DiagnosticsService.class,
+            FlagService.class,
+            SchemaService.class,
+            WebhookService.class,
+            InternationalizationService.class,
+            AuditService.class
         };
         
         int available = 0;

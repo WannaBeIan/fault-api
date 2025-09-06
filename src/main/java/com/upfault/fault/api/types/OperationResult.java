@@ -37,22 +37,24 @@ public sealed interface OperationResult
     /**
      * Creates a failed operation result.
      * 
-     * @param reason the failure reason
+     * @param code the fault code
+     * @param message the failure message
      * @return failure result
      */
-    static @NotNull OperationResult failure(@NotNull String reason) {
-        return new Failure(reason, null);
+    static @NotNull OperationResult failure(@NotNull FaultCode code, @NotNull String message) {
+        return new Failure(code, message, null);
     }
     
     /**
      * Creates a failed operation result with a cause.
      * 
-     * @param reason the failure reason
+     * @param code the fault code
+     * @param message the failure message
      * @param cause the underlying cause
      * @return failure result with cause
      */
-    static @NotNull OperationResult failure(@NotNull String reason, @Nullable Throwable cause) {
-        return new Failure(reason, cause);
+    static @NotNull OperationResult failure(@NotNull FaultCode code, @NotNull String message, @Nullable Throwable cause) {
+        return new Failure(code, message, cause);
     }
     
     /**
@@ -97,14 +99,18 @@ public sealed interface OperationResult
     /**
      * Represents a failed operation result.
      * 
-     * @param reason the failure reason
+     * @param code the fault code
+     * @param message the failure message
      * @param cause the optional underlying cause
      */
-    record Failure(@NotNull String reason, @Nullable Throwable cause) implements OperationResult {
+    record Failure(@NotNull FaultCode code, @NotNull String message, @Nullable Throwable cause) implements OperationResult {
         
         public Failure {
-            if (reason == null || reason.trim().isEmpty()) {
-                throw new IllegalArgumentException("Failure reason cannot be null or empty");
+            if (code == null) {
+                throw new IllegalArgumentException("Fault code cannot be null");
+            }
+            if (message == null || message.trim().isEmpty()) {
+                throw new IllegalArgumentException("Failure message cannot be null or empty");
             }
         }
         
@@ -130,8 +136,8 @@ public sealed interface OperationResult
         @Override
         public @NotNull String toString() {
             return cause != null ? 
-                "Failure[" + reason + ", caused by " + cause + "]" :
-                "Failure[" + reason + "]";
+                "Failure[" + code + ": " + message + ", caused by " + cause + "]" :
+                "Failure[" + code + ": " + message + "]";
         }
     }
     

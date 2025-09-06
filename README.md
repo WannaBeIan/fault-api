@@ -34,16 +34,22 @@ The API provides the following service interfaces:
 - `PlatformInfoService` - Server metrics, TPS, uptime, player counts
 - `TimeService` - Tick/duration conversions and server time utilities  
 - `SchedulerFacade` - Folia-friendly async and sync task scheduling
+- `CapabilityService` - Runtime capability detection and API versioning
+- `HealthCheckService` - Plugin health monitoring with configurable checks
+- `DiagnosticsService` - System metrics collection and performance monitoring
 
 ### Messaging & Communication
 - `MessageService` - Component-based messaging with MiniMessage support
 - `CommandModel` - Declarative command trees for Brigadier integration
 - `EventBus` - Lightweight pub/sub system with sync/async channels
+- `InternationalizationService` - Multi-language support with ICU formatting
+- `WebhookService` - HTTP webhook delivery with retry logic and tracking
 
 ### Data & Storage
-- `ProfileService` - Per-player profile management with attributes
+- `ProfileService` - Per-player profile management with attributes and versioning
 - `CacheFacade` - Builder-style cache configuration and monitoring
 - `StorageFacade` - Repository pattern for data persistence
+- `SchemaService` - Data schema validation and migration management
 
 ### Game Systems
 - `EconomyFacade` - Economy operations with result types
@@ -51,9 +57,13 @@ The API provides the following service interfaces:
 - `ItemFacade` - Immutable item descriptions without ItemStack coupling
 - `GuiModel` - Declarative inventory GUI system
 - `RegionModel` - World coordinate and region abstractions
+- `ResourcePackService` - Resource pack distribution and status tracking
+- `RngService` - Deterministic random number generation with sessions
+- `FlagService` - Temporary and permanent feature flags for players and worlds
 
 ### Auditing & Monitoring
 - `AuditFacade` - Append-only audit events with configurable sinks
+- `AuditService` - Comprehensive audit logging with structured metadata
 
 ## Service Usage
 
@@ -189,15 +199,28 @@ public void onEconomyChange(EconomyChangeEvent event) {
 
 ## Data Types
 
-The API includes comprehensive DTO records:
+The API includes comprehensive DTO records and type-safe constructs:
 
+### Core Types
 - `TpsSnapshot` - Server performance metrics
 - `Money` - Currency amounts with minor unit precision
 - `Coordinates` - World positions with NamespacedId worlds
-- `Page<T>` - Paginated results
-- `OperationResult` - Success/failure result types
-- `ProfileSnapshot` - Immutable player profile data
+- `Page<T>` - Paginated results with navigation
+- `OperationResult` - Success/failure result types with fault codes
+- `ProfileSnapshot` - Immutable player profile data with versioning
 - `ItemDescription` - Platform-agnostic item representation
+
+### Advanced Types
+- `AttributeKey<T>` - Type-safe keys for attribute storage
+- `AttributeMap` - Thread-safe attribute modifier collections
+- `DataKey<T>` - Type-safe keys for persistent data access
+- `DataView` - Hierarchical data access with type safety
+- `CooldownState` - Immutable cooldown/warmup state tracking
+- `ResourcePack` - Resource pack definitions with metadata
+- `Modifier` - Attribute modifiers with operation ordering
+- `FaultCode` - Standardized error classification
+- `ApiVersion` - Semantic versioning with compatibility checking
+- `Capability` - System capability enumeration
 
 ## Version Compatibility
 
