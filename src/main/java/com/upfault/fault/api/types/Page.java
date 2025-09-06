@@ -3,37 +3,41 @@ package com.upfault.fault.api.types;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
- * Represents a paginated result set.
+ * Represents a page of results from a paginated query.
  * 
- * @param content the content items for this page
+ * <p>This record encapsulates pagination metadata along with the actual page content,
+ * allowing APIs to provide paginated results with full navigation information.
+ * 
+ * @param <T> the type of items in this page
+ * @param content the items on this page
  * @param page the current page number (0-based)
- * @param size the size of each page
- * @param totalPages the total number of pages
+ * @param size the requested page size
  * @param totalElements the total number of elements across all pages
- * @param <T> the type of content items
+ * @param totalPages the total number of pages
  * 
  * @since 0.0.1
- * @apiNote Used for paginated query results and GUI pagination
+ * @apiNote This record is immutable and thread-safe
  */
 public record Page<T>(
     @NotNull List<T> content,
     int page,
     int size,
-    int totalPages,
-    long totalElements
+    long totalElements,
+    int totalPages
 ) {
     
     /**
-     * Creates a new Page with validation.
+     * Compact constructor with validation.
      * 
-     * @param content the page content (cannot be null)
-     * @param page the page number (must be non-negative)
+     * @param content the page content (will be defensively copied)
+     * @param page the current page number (must be non-negative)
      * @param size the page size (must be positive)
-     * @param totalPages the total pages (must be non-negative)
-     * @param totalElements the total elements (must be non-negative)
-     * @throws IllegalArgumentException if any parameter is invalid
+     * @param totalElements the total number of elements (must be non-negative)
+     * @param totalPages the total number of pages (must be non-negative)
+     * @throws IllegalArgumentException if validation fails
      */
     public Page {
         if (content == null) {
@@ -42,46 +46,64 @@ public record Page<T>(
         if (page < 0) {
             throw new IllegalArgumentException("Page number cannot be negative: " + page);
         }
-        if (size <= 0) {
+        if (size < 1) {
             throw new IllegalArgumentException("Page size must be positive: " + size);
-        }
-        if (totalPages < 0) {
-            throw new IllegalArgumentException("Total pages cannot be negative: " + totalPages);
         }
         if (totalElements < 0) {
             throw new IllegalArgumentException("Total elements cannot be negative: " + totalElements);
         }
+        if (totalPages < 0) {
+            throw new IllegalArgumentException("Total pages cannot be negative: " + totalPages);
+        }
+        
+        // Validate page consistency
+        if (totalPages == 0 && totalElements > 0) {
+            throw new IllegalArgumentException("Total pages cannot be 0 when total elements > 0");
+        }
+        if (totalPages > 0 && page >= totalPages) {
+            throw new IllegalArgumentException("Page number " + page + " exceeds total pages " + totalPages);
+        }
+        
+        // Defensive copy
+        content = List.copyOf(content);
     }
     
     /**
      * Creates an empty page.
      * 
+     * @param page the page number
      * @param size the page size
      * @param <T> the content type
-     * @return empty page with the specified size
+     * @return empty page
      */
-    public static <T> @NotNull Page<T> empty(int size) {
-        return new Page<>(List.of(), 0, size, 0, 0);
+    public static <T> @NotNull Page<T> empty(int page, int size) {
+        return new Page<>(List.of(), page, size, 0, 0);
     }
     
     /**
-     * Creates a single page containing all elements.
+     * Creates a single page containing all the provided content.
      * 
-     * @param content the content items
+     * @param content the page content
      * @param <T> the content type
-     * @return page containing all the content
+     * @return single page containing all content
      */
-    public static <T> @NotNull Page<T> of(@NotNull List<T> content) {
-        return new Page<>(content, 0, content.size(), content.isEmpty() ? 0 : 1, content.size());
+    public static <T> @NotNull Page<T> single(@NotNull List<T> content) {
+        return new Page<>(content, 0, content.size(), content.size(), content.isEmpty() ? 0 : 1);
     }
     
     /**
-     * Checks if this page is empty.
+     * Creates a page of results.
      * 
-     * @return true if the page contains no content
+     * @param content the page content
+     * @param page the page number (0-based)
+     * @param size the page size
+     * @param totalElements the total number of elements
+     * @param <T> the content type
+     * @return new page
      */
-    public boolean isEmpty() {
-        return content.isEmpty();
+    public static <T> @NotNull Page<T> of(@NotNull List<T> content, int page, int size, long totalElements) {
+        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / size);
+        return new Page<>(content, page, size, totalElements, totalPages);
     }
     
     /**
@@ -99,7 +121,7 @@ public record Page<T>(
      * @return true if this is the last page
      */
     public boolean isLast() {
-        return page >= totalPages - 1;
+        return totalPages == 0 || page == totalPages - 1;
     }
     
     /**
@@ -108,7 +130,7 @@ public record Page<T>(
      * @return true if there is a next page
      */
     public boolean hasNext() {
-        return page < totalPages - 1;
+        return !isLast();
     }
     
     /**
@@ -117,50 +139,102 @@ public record Page<T>(
      * @return true if there is a previous page
      */
     public boolean hasPrevious() {
-        return page > 0;
+        return !isFirst();
     }
     
     /**
-     * Gets the next page number.
+     * Checks if this page is empty.
      * 
-     * @return the next page number, or -1 if this is the last page
+     * @return true if the page has no content
      */
-    public int getNextPage() {
-        return hasNext() ? page + 1 : -1;
-    }
-    
-    /**
-     * Gets the previous page number.
-     * 
-     * @return the previous page number, or -1 if this is the first page
-     */
-    public int getPreviousPage() {
-        return hasPrevious() ? page - 1 : -1;
+    public boolean isEmpty() {
+        return content.isEmpty();
     }
     
     /**
      * Gets the number of elements on this page.
      * 
-     * @return the number of elements in the content list
+     * @return the number of elements
      */
     public int getNumberOfElements() {
         return content.size();
     }
     
     /**
-     * Creates a new page with different content but same pagination info.
+     * Gets the index of the first element on this page relative to all pages.
      * 
-     * @param newContent the new content
-     * @param <U> the new content type
-     * @return new page with the mapped content
+     * @return the start index, or 0 if empty
      */
-    public <U> @NotNull Page<U> withContent(@NotNull List<U> newContent) {
-        return new Page<>(newContent, page, size, totalPages, totalElements);
+    public long getStartIndex() {
+        return isEmpty() ? 0 : (long) page * size + 1;
+    }
+    
+    /**
+     * Gets the index of the last element on this page relative to all pages.
+     * 
+     * @return the end index, or 0 if empty
+     */
+    public long getEndIndex() {
+        return isEmpty() ? 0 : getStartIndex() + getNumberOfElements() - 1;
+    }
+    
+    /**
+     * Maps the content of this page to a different type.
+     * 
+     * @param mapper the mapping function
+     * @param <U> the target type
+     * @return new page with mapped content
+     * @throws IllegalArgumentException if mapper is null
+     */
+    public <U> @NotNull Page<U> map(@NotNull Function<T, U> mapper) {
+        if (mapper == null) {
+            throw new IllegalArgumentException("Mapper function cannot be null");
+        }
+        List<U> mappedContent = content.stream()
+                                      .map(mapper)
+                                      .toList();
+        return new Page<>(mappedContent, page, size, totalElements, totalPages);
+    }
+    
+    /**
+     * Creates pagination info without the actual content.
+     * 
+     * @return pagination metadata
+     */
+    public @NotNull PageInfo toPageInfo() {
+        return new PageInfo(page, size, totalElements, totalPages);
+    }
+    
+    /**
+     * Pagination metadata without content.
+     * 
+     * @param page the current page number (0-based)
+     * @param size the page size
+     * @param totalElements the total number of elements
+     * @param totalPages the total number of pages
+     */
+    public record PageInfo(
+        int page,
+        int size,
+        long totalElements,
+        int totalPages
+    ) {
+        public PageInfo {
+            if (page < 0) throw new IllegalArgumentException("Page cannot be negative");
+            if (size < 1) throw new IllegalArgumentException("Size must be positive");
+            if (totalElements < 0) throw new IllegalArgumentException("Total elements cannot be negative");
+            if (totalPages < 0) throw new IllegalArgumentException("Total pages cannot be negative");
+        }
+        
+        public boolean isFirst() { return page == 0; }
+        public boolean isLast() { return totalPages == 0 || page == totalPages - 1; }
+        public boolean hasNext() { return !isLast(); }
+        public boolean hasPrevious() { return !isFirst(); }
     }
     
     @Override
     public @NotNull String toString() {
-        return String.format("Page[%d of %d, %d/%d items, %d total]",
-                           page + 1, totalPages, getNumberOfElements(), size, totalElements);
+        return String.format("Page[page=%d, size=%d, totalElements=%d, totalPages=%d, content=%d items]",
+                           page, size, totalElements, totalPages, content.size());
     }
 }

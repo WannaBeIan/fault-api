@@ -1,147 +1,261 @@
 package com.upfault.fault.api.types;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * Selects audiences for message delivery.
+ * Selects which players should receive notifications or other targeted actions.
  * 
- * <p>This sealed interface provides type-safe audience selection for
- * messaging operations, supporting individual players, all players,
- * and permission-based groups.
+ * <p>This sealed interface provides type-safe audience targeting for notifications,
+ * sounds, and other player-specific operations. Different selector types allow
+ * for precise targeting based on various criteria.
  * 
  * @since 0.0.1
- * @apiNote Uses sealed interface pattern for exhaustive matching
+ * @apiNote This is a sealed interface with specific implementations for different targeting strategies
  */
 public sealed interface AudienceSelector 
-    permits AudienceSelector.Player, AudienceSelector.All, AudienceSelector.Permission {
-    
-    /**
-     * Selects a specific player by UUID.
-     * 
-     * @param playerId the player's UUID
-     * @return audience selector for the player
-     */
-    static @NotNull AudienceSelector player(@NotNull UUID playerId) {
-        return new Player(playerId);
-    }
+    permits AudienceSelector.All, AudienceSelector.Players, AudienceSelector.Permission, 
+            AudienceSelector.World, AudienceSelector.Region, AudienceSelector.Nearby {
     
     /**
      * Selects all online players.
      * 
-     * @return audience selector for all players
-     */
-    static @NotNull AudienceSelector all() {
-        return All.INSTANCE;
-    }
-    
-    /**
-     * Selects players with a specific permission.
-     * 
-     * @param permission the permission string
-     * @return audience selector for players with the permission
-     */
-    static @NotNull AudienceSelector permission(@NotNull String permission) {
-        return new Permission(permission);
-    }
-    
-    /**
-     * Audience selector for a specific player.
-     * 
-     * @param playerId the player's UUID
-     */
-    record Player(@NotNull UUID playerId) implements AudienceSelector {
-        
-        public Player {
-            if (playerId == null) {
-                throw new IllegalArgumentException("Player ID cannot be null");
-            }
-        }
-        
-        @Override
-        public @NotNull String toString() {
-            return "Player[" + playerId + "]";
-        }
-    }
-    
-    /**
-     * Audience selector for all online players.
+     * <p>This is the broadest selector, targeting every player currently connected
+     * to the server.
      */
     record All() implements AudienceSelector {
+        /**
+         * Gets the singleton instance of the all-players selector.
+         * 
+         * @return selector that targets all online players
+         */
+        public static @NotNull All instance() {
+            return INSTANCE;
+        }
         
-        static final All INSTANCE = new All();
+        private static final All INSTANCE = new All();
+    }
+    
+    /**
+     * Selects specific players by their UUIDs.
+     * 
+     * @param players the set of player UUIDs to target
+     */
+    record Players(@NotNull Set<UUID> players) implements AudienceSelector {
+        /**
+         * Compact constructor with validation and defensive copying.
+         * 
+         * @param players the player UUIDs (will be defensively copied)
+         * @throws IllegalArgumentException if players is null or empty
+         */
+        public Players {
+            if (players == null || players.isEmpty()) {
+                throw new IllegalArgumentException("Player set cannot be null or empty");
+            }
+            players = Set.copyOf(players);
+        }
         
-        @Override
-        public @NotNull String toString() {
-            return "All[]";
+        /**
+         * Creates a selector for a single player.
+         * 
+         * @param player the player UUID
+         * @return selector targeting the single player
+         * @throws IllegalArgumentException if player is null
+         */
+        public static @NotNull Players single(@NotNull UUID player) {
+            if (player == null) {
+                throw new IllegalArgumentException("Player UUID cannot be null");
+            }
+            return new Players(Set.of(player));
+        }
+        
+        /**
+         * Gets the number of targeted players.
+         * 
+         * @return the count of players in this selector
+         */
+        public int count() {
+            return players.size();
         }
     }
     
     /**
-     * Audience selector for players with a specific permission.
+     * Selects players who have a specific permission.
      * 
-     * @param permission the permission string
+     * @param permission the permission string to check
      */
     record Permission(@NotNull String permission) implements AudienceSelector {
-        
+        /**
+         * Compact constructor with validation.
+         * 
+         * @param permission the permission string (cannot be null or empty)
+         * @throws IllegalArgumentException if permission is null or empty
+         */
         public Permission {
             if (permission == null || permission.trim().isEmpty()) {
                 throw new IllegalArgumentException("Permission cannot be null or empty");
             }
-        }
-        
-        @Override
-        public @NotNull String toString() {
-            return "Permission[" + permission + "]";
+            permission = permission.trim();
         }
     }
     
     /**
-     * Pattern matching helper for audience selectors.
+     * Selects players in a specific world.
      * 
-     * @param <T> the return type
+     * @param worldId the world identifier
      */
-    interface Matcher<T> {
+    record World(@NotNull NamespacedId worldId) implements AudienceSelector {
+        /**
+         * Compact constructor with validation.
+         * 
+         * @param worldId the world identifier (cannot be null)
+         * @throws IllegalArgumentException if worldId is null
+         */
+        public World {
+            if (worldId == null) {
+                throw new IllegalArgumentException("World ID cannot be null");
+            }
+        }
         
         /**
-         * Handles player audience selector.
+         * Creates a selector for the overworld.
          * 
-         * @param player the player selector
-         * @return the result
+         * @return selector targeting players in the overworld
          */
-        T onPlayer(@NotNull Player player);
+        public static @NotNull World overworld() {
+            return new World(NamespacedId.minecraft("overworld"));
+        }
         
         /**
-         * Handles all players audience selector.
+         * Creates a selector for the nether.
          * 
-         * @param all the all selector
-         * @return the result
+         * @return selector targeting players in the nether
          */
-        T onAll(@NotNull All all);
+        public static @NotNull World nether() {
+            return new World(NamespacedId.minecraft("the_nether"));
+        }
         
         /**
-         * Handles permission-based audience selector.
+         * Creates a selector for the end.
          * 
-         * @param permission the permission selector
-         * @return the result
+         * @return selector targeting players in the end
          */
-        T onPermission(@NotNull Permission permission);
+        public static @NotNull World end() {
+            return new World(NamespacedId.minecraft("the_end"));
+        }
     }
     
     /**
-     * Applies pattern matching to this audience selector.
+     * Selects players within a specific region.
      * 
-     * @param matcher the matcher to apply
-     * @param <T> the return type
-     * @return the result of the matching
+     * @param region the region to check for players
      */
-    default <T> T match(@NotNull Matcher<T> matcher) {
-        return switch (this) {
-            case Player player -> matcher.onPlayer(player);
-            case All all -> matcher.onAll(all);
-            case Permission permission -> matcher.onPermission(permission);
-        };
+    record Region(@NotNull com.upfault.fault.api.types.Region region) implements AudienceSelector {
+        /**
+         * Compact constructor with validation.
+         * 
+         * @param region the region (cannot be null)
+         * @throws IllegalArgumentException if region is null
+         */
+        public Region {
+            if (region == null) {
+                throw new IllegalArgumentException("Region cannot be null");
+            }
+        }
+    }
+    
+    /**
+     * Selects players within a certain distance of coordinates.
+     * 
+     * @param center the center coordinates
+     * @param radius the maximum distance in blocks
+     */
+    record Nearby(@NotNull Coordinates center, double radius) implements AudienceSelector {
+        /**
+         * Compact constructor with validation.
+         * 
+         * @param center the center coordinates (cannot be null)
+         * @param radius the radius in blocks (must be positive)
+         * @throws IllegalArgumentException if validation fails
+         */
+        public Nearby {
+            if (center == null) {
+                throw new IllegalArgumentException("Center coordinates cannot be null");
+            }
+            if (radius <= 0 || Double.isNaN(radius) || Double.isInfinite(radius)) {
+                throw new IllegalArgumentException("Radius must be positive and finite, got: " + radius);
+            }
+        }
+        
+        /**
+         * Gets the world this selector applies to.
+         * 
+         * @return the world identifier from the center coordinates
+         */
+        public @NotNull NamespacedId getWorld() {
+            return center.worldId();
+        }
+    }
+    
+    /**
+     * Convenience method to create an all-players selector.
+     * 
+     * @return selector targeting all online players
+     */
+    static @NotNull All all() {
+        return All.instance();
+    }
+    
+    /**
+     * Convenience method to create a single-player selector.
+     * 
+     * @param player the player UUID
+     * @return selector targeting the single player
+     */
+    static @NotNull Players player(@NotNull UUID player) {
+        return Players.single(player);
+    }
+    
+    /**
+     * Convenience method to create a permission-based selector.
+     * 
+     * @param permission the permission string
+     * @return selector targeting players with the permission
+     */
+    static @NotNull Permission permission(@NotNull String permission) {
+        return new Permission(permission);
+    }
+    
+    /**
+     * Convenience method to create a world-based selector.
+     * 
+     * @param worldId the world identifier
+     * @return selector targeting players in the world
+     */
+    static @NotNull World world(@NotNull NamespacedId worldId) {
+        return new World(worldId);
+    }
+    
+    /**
+     * Convenience method to create a region-based selector.
+     * 
+     * @param region the region
+     * @return selector targeting players in the region
+     */
+    static @NotNull Region region(@NotNull com.upfault.fault.api.types.Region region) {
+        return new Region(region);
+    }
+    
+    /**
+     * Convenience method to create a proximity-based selector.
+     * 
+     * @param center the center coordinates
+     * @param radius the radius in blocks
+     * @return selector targeting players within range
+     */
+    static @NotNull Nearby nearby(@NotNull Coordinates center, double radius) {
+        return new Nearby(center, radius);
     }
 }

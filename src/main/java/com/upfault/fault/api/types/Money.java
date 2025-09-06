@@ -22,17 +22,23 @@ public record Money(long minorUnits, @NotNull String currency) {
     /**
      * Creates a new Money instance with validation.
      * 
-     * @param minorUnits the amount in minor units (must be non-negative)
+     * @param minorUnits the amount in minor units (can be negative for debts)
      * @param currency the currency code (cannot be null or empty)
-     * @throws IllegalArgumentException if minorUnits is negative or currency is invalid
+     * @throws IllegalArgumentException if currency is invalid
      */
     public Money {
-        if (minorUnits < 0) {
-            throw new IllegalArgumentException("Money amount cannot be negative: " + minorUnits);
-        }
         if (currency == null || currency.trim().isEmpty()) {
             throw new IllegalArgumentException("Currency cannot be null or empty");
         }
+    }
+    
+    /**
+     * Gets the amount in minor units.
+     * 
+     * @return the amount in minor units
+     */
+    public long amount() {
+        return minorUnits;
     }
     
     /**
@@ -44,12 +50,8 @@ public record Money(long minorUnits, @NotNull String currency) {
      * @param amount the decimal amount (e.g., 1.50 for $1.50)
      * @param currency the currency code
      * @return Money instance with the converted amount
-     * @throws IllegalArgumentException if amount is negative
      */
     public static @NotNull Money fromDecimal(double amount, @NotNull String currency) {
-        if (amount < 0) {
-            throw new IllegalArgumentException("Amount cannot be negative: " + amount);
-        }
         long minorUnits = Math.round(amount * 100);
         return new Money(minorUnits, currency);
     }
@@ -60,12 +62,8 @@ public record Money(long minorUnits, @NotNull String currency) {
      * @param amount the decimal amount
      * @param currency the currency code
      * @return Money instance with the converted amount
-     * @throws IllegalArgumentException if amount is negative
      */
     public static @NotNull Money fromDecimal(@NotNull BigDecimal amount, @NotNull String currency) {
-        if (amount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Amount cannot be negative: " + amount);
-        }
         long minorUnits = amount.multiply(BigDecimal.valueOf(100))
                                 .setScale(0, RoundingMode.HALF_UP)
                                 .longValue();
@@ -120,15 +118,12 @@ public record Money(long minorUnits, @NotNull String currency) {
      * 
      * @param other the amount to subtract
      * @return new Money instance with the difference
-     * @throws IllegalArgumentException if currencies don't match or result would be negative
+     * @throws IllegalArgumentException if currencies don't match
      */
     public @NotNull Money subtract(@NotNull Money other) {
         if (!this.currency.equals(other.currency)) {
             throw new IllegalArgumentException("Cannot subtract different currencies: " + 
                                              this.currency + " and " + other.currency);
-        }
-        if (this.minorUnits < other.minorUnits) {
-            throw new IllegalArgumentException("Subtraction would result in negative amount");
         }
         return new Money(this.minorUnits - other.minorUnits, this.currency);
     }

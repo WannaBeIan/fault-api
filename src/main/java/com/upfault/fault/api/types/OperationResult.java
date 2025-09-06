@@ -4,194 +4,162 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Sealed interface representing the result of an operation.
+ * Represents the result of an operation, including success status and optional message.
  * 
- * <p>This provides a type-safe way to handle operation results without
- * relying on exceptions for flow control.
+ * <p>This type provides a standardized way to return operation results across the API,
+ * allowing callers to check for success, get error messages, and handle failures gracefully.
+ * 
+ * @param success whether the operation completed successfully
+ * @param message optional message providing additional context
  * 
  * @since 0.0.1
- * @apiNote Uses sealed interface pattern for exhaustive matching
+ * @apiNote This record is immutable and thread-safe
  */
-public sealed interface OperationResult 
-    permits OperationResult.Success, OperationResult.Failure {
+public record OperationResult(boolean success, @Nullable String message) {
     
     /**
-     * Creates a successful operation result.
+     * Compact constructor with validation.
      * 
-     * @return success result
+     * @param success whether the operation succeeded
+     * @param message optional message (trimmed if provided)
+     * @throws IllegalArgumentException if message is empty (use null instead)
      */
-    static @NotNull OperationResult success() {
-        return Success.INSTANCE;
+    public OperationResult {
+        if (message != null && message.trim().isEmpty()) {
+            throw new IllegalArgumentException("Message cannot be empty (use null instead)");
+        }
+        if (message != null) {
+            message = message.trim();
+        }
+    }
+    
+    /**
+     * Creates a successful operation result with no message.
+     * 
+     * @return successful operation result
+     */
+    public static @NotNull OperationResult ok() {
+        return new OperationResult(true, null);
     }
     
     /**
      * Creates a successful operation result with a message.
      * 
-     * @param message the success message
-     * @return success result with message
+     * @param message success message
+     * @return successful operation result
      */
-    static @NotNull OperationResult success(@NotNull String message) {
-        return new Success(message);
+    public static @NotNull OperationResult ok(@NotNull String message) {
+        return new OperationResult(true, message);
     }
     
     /**
-     * Creates a failed operation result.
+     * Creates a failed operation result with an error message.
      * 
-     * @param reason the failure reason
-     * @return failure result
+     * @param errorMessage error message describing why the operation failed
+     * @return failed operation result
+     * @throws IllegalArgumentException if errorMessage is null or empty
      */
-    static @NotNull OperationResult failure(@NotNull String reason) {
-        return new Failure(reason, null);
+    public static @NotNull OperationResult failure(@NotNull String errorMessage) {
+        if (errorMessage == null || errorMessage.trim().isEmpty()) {
+            throw new IllegalArgumentException("Failure message cannot be null or empty");
+        }
+        return new OperationResult(false, errorMessage);
     }
     
     /**
-     * Creates a failed operation result with a cause.
+     * Creates a failed operation result from an exception.
      * 
-     * @param reason the failure reason
-     * @param cause the underlying cause
-     * @return failure result with cause
+     * @param exception the exception that caused the failure
+     * @return failed operation result
+     * @throws IllegalArgumentException if exception is null
      */
-    static @NotNull OperationResult failure(@NotNull String reason, @Nullable Throwable cause) {
-        return new Failure(reason, cause);
+    public static @NotNull OperationResult failure(@NotNull Exception exception) {
+        if (exception == null) {
+            throw new IllegalArgumentException("Exception cannot be null");
+        }
+        String message = exception.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            message = exception.getClass().getSimpleName();
+        }
+        return new OperationResult(false, message);
     }
     
     /**
-     * Checks if this result represents success.
+     * Checks if the operation failed.
      * 
-     * @return true if the operation was successful
+     * @return true if the operation was not successful
      */
-    boolean isSuccess();
+    public boolean isFailure() {
+        return !success;
+    }
     
     /**
-     * Checks if this result represents failure.
+     * Gets the message, or a default message if none is provided.
      * 
-     * @return true if the operation failed
+     * @param defaultMessage the default message to use if none is set
+     * @return the message or default message
      */
-    boolean isFailure();
+    public @NotNull String getMessageOrDefault(@NotNull String defaultMessage) {
+        return message != null ? message : defaultMessage;
+    }
     
     /**
-     * Represents a successful operation result.
+     * Throws an exception if the operation failed.
      * 
-     * @param message optional success message
+     * @throws RuntimeException if the operation was not successful
      */
-    record Success(@Nullable String message) implements OperationResult {
-        
-        static final Success INSTANCE = new Success(null);
-        
-        @Override
-        public boolean isSuccess() {
-            return true;
+    public void throwIfFailure() {
+        if (!success) {
+            String errorMsg = message != null ? message : "Operation failed";
+            throw new RuntimeException(errorMsg);
+        }
+    }
+    
+    /**
+     * Combines this result with another result using logical AND.
+     * Both operations must succeed for the combined result to succeed.
+     * 
+     * @param other the other operation result
+     * @return combined operation result
+     * @throws IllegalArgumentException if other is null
+     */
+    public @NotNull OperationResult and(@NotNull OperationResult other) {
+        if (other == null) {
+            throw new IllegalArgumentException("Other result cannot be null");
         }
         
-        @Override
-        public boolean isFailure() {
-            return false;
-        }
-        
-        @Override
-        public @NotNull String toString() {
-            return message != null ? "Success[" + message + "]" : "Success";
-        }
-    }
-    
-    /**
-     * Represents a failed operation result.
-     * 
-     * @param reason the failure reason
-     * @param cause the optional underlying cause
-     */
-    record Failure(@NotNull String reason, @Nullable Throwable cause) implements OperationResult {
-        
-        public Failure {
-            if (reason == null || reason.trim().isEmpty()) {
-                throw new IllegalArgumentException("Failure reason cannot be null or empty");
+        if (success && other.success) {
+            // Both successful - combine messages if any
+            if (message != null && other.message != null) {
+                return new OperationResult(true, message + "; " + other.message);
+            } else if (message != null) {
+                return this;
+            } else if (other.message != null) {
+                return other;
+            } else {
+                return OperationResult.ok();
             }
-        }
-        
-        @Override
-        public boolean isSuccess() {
-            return false;
-        }
-        
-        @Override
-        public boolean isFailure() {
-            return true;
-        }
-        
-        /**
-         * Checks if this failure has an underlying cause.
-         * 
-         * @return true if there is a cause
-         */
-        public boolean hasCause() {
-            return cause != null;
-        }
-        
-        @Override
-        public @NotNull String toString() {
-            return cause != null ? 
-                "Failure[" + reason + ", caused by " + cause + "]" :
-                "Failure[" + reason + "]";
+        } else {
+            // At least one failed - combine error messages
+            String errorMsg;
+            if (!success && !other.success) {
+                errorMsg = (message != null ? message : "Operation failed") + 
+                          "; " + (other.message != null ? other.message : "Operation failed");
+            } else if (!success) {
+                errorMsg = message != null ? message : "Operation failed";
+            } else {
+                errorMsg = other.message != null ? other.message : "Operation failed";
+            }
+            return new OperationResult(false, errorMsg);
         }
     }
     
-    /**
-     * Pattern matching helper for operation results.
-     * 
-     * @param <T> the return type
-     */
-    interface Matcher<T> {
-        
-        /**
-         * Handles successful result.
-         * 
-         * @param success the success result
-         * @return the result
-         */
-        T onSuccess(@NotNull Success success);
-        
-        /**
-         * Handles failed result.
-         * 
-         * @param failure the failure result
-         * @return the result
-         */
-        T onFailure(@NotNull Failure failure);
-    }
-    
-    /**
-     * Applies pattern matching to this operation result.
-     * 
-     * @param matcher the matcher to apply
-     * @param <T> the return type
-     * @return the result of the matching
-     */
-    default <T> T match(@NotNull Matcher<T> matcher) {
-        return switch (this) {
-            case Success success -> matcher.onSuccess(success);
-            case Failure failure -> matcher.onFailure(failure);
-        };
-    }
-    
-    /**
-     * Executes code if the result is successful.
-     * 
-     * @param action the action to execute on success
-     */
-    default void ifSuccess(@NotNull Runnable action) {
-        if (isSuccess()) {
-            action.run();
-        }
-    }
-    
-    /**
-     * Executes code if the result is a failure.
-     * 
-     * @param action the action to execute on failure
-     */
-    default void ifFailure(@NotNull java.util.function.Consumer<Failure> action) {
-        if (this instanceof Failure failure) {
-            action.accept(failure);
+    @Override
+    public @NotNull String toString() {
+        if (success) {
+            return message != null ? "Success: " + message : "Success";
+        } else {
+            return "Failure: " + (message != null ? message : "Unknown error");
         }
     }
 }

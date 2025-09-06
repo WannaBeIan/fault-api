@@ -1,9 +1,6 @@
 package com.upfault.fault.api;
 
-import com.upfault.fault.api.types.AttributeKey;
-import com.upfault.fault.api.types.NamespacedId;
-import com.upfault.fault.api.types.ProfileId;
-import com.upfault.fault.api.types.ProfileSnapshot;
+import com.upfault.fault.api.types.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -84,6 +81,20 @@ public interface ProfileService {
      */
     @NotNull
     CompletableFuture<Void> saveProfile(@NotNull ProfileSnapshot profile);
+
+    /**
+     * Saves a profile snapshot with optimistic concurrency control.
+     * 
+     * <p>This method performs an optimistic save that will fail if the profile
+     * has been modified by another process since the expected version.
+     * 
+     * @param snapshot the profile snapshot to save
+     * @param expectedVersion the expected current version
+     * @return future containing the operation result
+     * @since 0.0.1
+     */
+    @NotNull
+    CompletableFuture<OperationResult> save(@NotNull ProfileSnapshot snapshot, int expectedVersion);
 
     /**
      * Checks if a profile exists for the given player.
